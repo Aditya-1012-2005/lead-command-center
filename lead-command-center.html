@@ -1,0 +1,130 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead Command Center</title>
+<style>
+:root{--bg:#fff;--fg:#1a1a1a;--mu:#666;--bd:#ddd;--cd:#f5f5f2;--ac:#0b7a5a}
+:root.d{--bg:#121212;--fg:#eee;--mu:#9a9a9a;--bd:#333;--cd:#1d1d1d;--ac:#3ecf9a}
+*{box-sizing:border-box}body{margin:0;font:14px system-ui,sans-serif;background:var(--bg);color:var(--fg);padding:12px}
+h1{font-size:18px;margin:0}header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:10px}
+button,select,input,textarea{font:inherit;color:var(--fg);background:var(--cd);border:1px solid var(--bd);border-radius:6px;padding:5px 8px}
+button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}
+.bar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.chip{background:var(--cd);border:1px solid var(--bd);border-radius:14px;padding:4px 10px;font-size:13px}
+.tot{font-weight:600;color:var(--ac)}.flt{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}.flt input{flex:1;min-width:140px}
+.w{overflow-x:auto;border:1px solid var(--bd);border-radius:8px}table{border-collapse:collapse;width:100%;min-width:1100px}
+th,td{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}th{cursor:pointer;background:var(--cd);white-space:nowrap;position:sticky;top:0}
+a{color:var(--ac)}.t{font-weight:700}td input{width:100%;min-width:130px}.m{color:var(--mu);font-size:12px}
+dialog{background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:10px;max-width:560px;width:92%}
+dialog textarea{width:100%;height:110px}details{margin-top:14px}
+</style></head><body>
+<header><h1>Lead Command Center</h1><div>
+<button onclick="addL()">+ Lead</button> <button onclick="exp()">Export</button>
+<button onclick="document.getElementById('f').click()">Import</button>
+<input type="file" id="f" accept=".json" hidden onchange="imp(this)">
+<button onclick="if(confirm('Reset to seed data?')){L=SEED.map(mk);save();draw()}">Reset</button>
+<button onclick="document.documentElement.classList.toggle('d');localStorage.setItem('lcc_d',document.documentElement.classList.contains('d')?1:'')">Theme</button></div></header>
+<div class="bar" id="sum"></div>
+<div class="flt"><input id="q" placeholder="Search brand, handle, city, notes" oninput="draw()">
+<select id="ft" onchange="draw()"><option value="">All tiers</option><option>A</option><option>B</option><option>C</option></select>
+<select id="fp" onchange="draw()"><option value="">All pitches</option><option>A</option><option>B</option><option>C</option><option>D</option><option>E</option><option>F</option></select>
+<select id="fs" onchange="draw()"><option value="">All statuses</option></select></div>
+<div class="w"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+<details><summary>Not leads (2)</summary><ul id="nl"></ul></details>
+<dialog id="dg"><b id="dt"></b><p class="m">First touch (<span id="wc"></span> words)</p><textarea id="p0"></textarea>
+<p class="m">Follow-ups</p><textarea id="p1" style="height:60px"></textarea><textarea id="p2" style="height:60px"></textarea><textarea id="p3" style="height:60px"></textarea>
+<p><button onclick="cp('p0')">Copy first touch</button> <a id="sl" target="_blank" rel="noopener"><button class="p">Send</button></a> <button onclick="dg.close()">Close</button></p></dialog>
+<script>
+const ST=['New','Messaged','Replied','Call booked','Won','Dead'],RT={A:25000,B:12000,C:5000},K='lcc_v1';
+const COLS=[['brand','Brand'],['ig','Instagram'],['site','Website'],['fol','Followers'],['ph','Phone/WhatsApp'],['city','City'],['cat','Category'],['tier','Tier'],['pitch','Pitches'],['status','Status'],['last','Last contacted'],['notes','Notes'],['act','']];
+// brand, handle, site, followers, phone, city, tier, pitches, notes  (category derived from notes)
+const SEED=[
+['Ace Blend','ace.blend','aceblend.com','172K','','','A','A,B,C','supplements, sells on multiple platforms'],
+['Farm2Home','farmm2home','farmm2home.com','249K','97895 58225','Chennai','A','A,B,C','GMP/FSSAI/ISO, "trusted by 2 lakh moms", WhatsApp already in bio'],
+['Dalhouse','dalhouse__','dalhouse.in','68.3K','74004 34051; 86919 88888; 99678 91111','Mumbai','A','A,B,D','slow-cooked ready-to-eat, runs WhatsApp orders, multiple contact numbers in posts'],
+['Eat Better Co','theeatbetterco','eatbetterco.com','64.5K','','','A','C,B','Blinkit/Instamart/Amazon/Zepto'],
+['True Elements','true.elements','','61K','','','A','C,E','recipe-heavy content'],
+['Gadre Seafood','gadreseafood','store.gadre.co.in','34.6K','','','A','B,C','seafood snacks, repeat-purchase product'],
+['TrueBasics','','truebasics.com','','','','A','C,B','protein, quick-delivery tier'],
+['Prolicious','itsprolicious','prolicious.com','27.4K','93216 24511','','A','C,A','Website, Amazon, Flipkart, Blinkit, Instamart'],
+['Bluero','bluero.bombay','','17.9K','','Mumbai','A','A,E','Turkish jacket potato, pop-ups'],
+['Sikandar Foods','sikandar_foods','','15.5K','','','A','C,D','since 1969, Amazon-led'],
+['Svasthyaa','svasthyaaorganics','svasthyaa.com','11.7K','','','A','C,A','Amazon, Blinkit, First Club'],
+['Aggarwal Namkeen','aggarwal_namkeen','aggarwalnamkeen.com','11.3K','','','A','D,C','"Distributorship open" in bio'],
+['OGMO Millet Food','ogmofoods','ogmofoods.com','10.6K','97911 65672','','A','A,B','WhatsApp catalogue link, millet recipes'],
+['Chhattisgarh Herbals','cgherbals_','chhattisgarhherbal.com','6.8K','','Chhattisgarh','A','A,C','tribal women collective'],
+['FoodTech Pathshala','foodtechpathshala','foodtechpathshala.com','8.6K','','Mumbai','A','F','education/courses'],
+['Pro-To-Grow','protogrowfoods','protogrow.in','8.4K','','','B','C,B','Northeast Indian superfoods, 1.5L+ families'],
+['Pure Project','pureprojectofficial','pureproject.in','5.5K','98188 80611','Ghaziabad','B','D,A','fruit bars, "Get quote" button for corporate hampers'],
+['Naman / Jhandewalas Foods','namans_india','namans.co.in','5.4K','','','B','C,D','ghee, 125 years, Instamart/Flipkart Minutes/Dealshare'],
+['Beyond Food','beyondfoodbars','beyondfoodbars.com','4.5K','','','B','B,C','whole-nutrition snacks'],
+['Regal Plus','regalplus','regalplus.com','4.3K','96197 74848; +971 58 502 7000','Mumbai/Dubai','B','A,B','sweets and snacks since 1979, festive spikes'],
+['Charliee Chikki','charliee.in','charliee.in','4K','','Valsad','B','D,C','exports to 35+ countries'],
+['Shree Aahar','shreeaahar foods','shreeaahar.com','4K','','Aligarh','B','D','potato flakes, bulk packs'],
+['Chuckle','eatchuckle.in','eatchuckle.in','3.2K','','','B','C,B','cookies, Amazon'],
+['Maxisoft','maxisoft_india','maxisoft.in','3K','89562 33709','','B','A,B','skincare'],
+['Sweet Spot','sweetspot.way','','3K','','','B','C','on Amazon, BigBasket, Flipkart, Tata 1mg, Blinkit'],
+['Anavrin','anavrin_thesoulfuldelight','anavrin.net.in','2.9K','','','B','C,B','Amazon, Flipkart, Fresh Aisle, Natures Basket'],
+['Vedaaz Milk','vedaaz.milk','vedaaz.com','2.7K','075174 44777','Mumbai/Pune/Thane','B','A,B','A2 milk subscriptions'],
+['The Woo','theworldofoganics','thewoo.in','2.1K','','','B','A','managed by agency @inwebtechno'],
+['Green Loops','greenloopsinc','greenloops.in','1.7K','','Gurugram','B','B','subscribe-and-save products'],
+['FarmSmith','farmsmithfoods','','1.4K','','','B','A','DM to order, WhatsApp button on profile'],
+['Eateryy Box','eateryybox.in','eateryybox.in','1.3K','','','B','A,B','ready-to-eat'],
+['Ikon Remedies','ikon.remedies_','ikonremedies.com','1.2K','89569 82687','Nagpur','B','D','pharma, 1800+ products'],
+['Healthfields','health.fields','healthfields.in','926','','','B','A,B','organic groceries'],
+['Snacc','','eatsnacc.com','','','','B','B,C','clean-label snacks, Shopify store'],
+['Bowlful Foods','','bowlfulstore.com','','87803 33613','','B','A,B',''],
+["Peri's Bakehouse",'','perisbakehouse.com','','96112 14911','Bengaluru','B','A,B','WhatsApp chat widget on site'],
+['NutBaba','','nutbaba.in','','93113 18132; 96673 66712','Noida','B','D,A','"Become a Distributor" page'],
+['Dairyland Global Foods','','','','77100 33667','','B','D,A','wholesale dairy, WhatsApp Business catalogue'],
+['Amrut Tulsi','amruttulsi_india','amruttulsi.com','498','89562 33709','','C','A','same number as Maxisoft'],
+['Tiny Fuel','tiny_fuel','','449','','','C','C','Amazon only'],
+['Dad Bites','dad_bites','dadbites.com','408','','','C','A','DM to order'],
+['Yumflick','yumflicksnacks','','397','90676 64474','','C','A','Amazon only, WhatsApp CTA'],
+['MithilaRam','mithilaram_','mithilaram.in','331','89536 07210','','C','A','makhana, Amazon and Flipkart'],
+['Aagastya Makhana','aagastya.makhana','aagastya.in','219','','','C','A','Bihar, export quality'],
+['Snactura','snactura_india','','189','','Kerala','C','A','Amazon only'],
+['UPFARM','upfarmfoods','upfarmfoods.com','14','96651 66453','Pune','C','','too early, skip']];
+const NL=['Alpixo Group (alpixo.group, 81300 57674): F&B sourcing service, a partner/referral target.','_hotcrossedbuns: personal creator account, not a brand.'];
+const mk=(r,i)=>({id:i+1,brand:r[0],ig:r[1],site:r[2],fol:r[3],ph:r[4],city:r[5],tier:r[6],pitch:r[7],status:'New',last:'',notes:r[8]});
+let L=load(),S={k:'tier',d:1};
+function load(){try{const s=JSON.parse(localStorage.getItem(K));if(Array.isArray(s)&&s.length)return s}catch(e){}return SEED.map(mk)}
+function save(){try{localStorage.setItem(K,JSON.stringify(L))}catch(e){}}
+try{if(localStorage.getItem('lcc_d')||(!localStorage.getItem('lcc_d')&&matchMedia('(prefers-color-scheme:dark)').matches&&localStorage.getItem('lcc_d')===null))document.documentElement.classList.add('d')}catch(e){}
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=f=>{const m=String(f).match(/([\d.]+)\s*([KkMm]?)/);return m?parseFloat(m[1])*({k:1e3,m:1e6}[m[2].toLowerCase()]||1):0};
+const cat=l=>{const n=(l.notes+' '+l.brand).toLowerCase();return /skincare/.test(n)?'Skincare':/pharma|herbal|supplement|protein|remed/.test(n)?'Wellness':/course|educat/.test(n)?'Education':/dairy|milk|ghee/.test(n)?'Dairy':/snack|namkeen|chikki|makhana|bar|cookie|sweet|chuckle/.test(n)?'Snacks':'Food'};
+function wa(p){const f=String(p).split(';')[0].trim();let d=f.replace(/\D/g,'');if(!d)return'';if(f.startsWith('+'))return d;if(d.length==11&&d[0]=='0')d=d.slice(1);return d.length==10?'91'+d:d}
+const PAIN={A:'Replying to price and order-status DMs one by one eats hours.',B:'Most first-time buyers never reorder without a nudge.',C:'Pulling sales and review numbers from each marketplace into one sheet is slow manual work.',D:'Bulk and distributor enquiries sit waiting for a quote.',E:'Writing captions and recipe posts every week adds up.',F:'Course enquiries go cold without quick follow-up.'};
+const OFFER={A:'a bot that answers order and stock questions on WhatsApp/DM',B:'automatic cart and reorder reminders on WhatsApp',C:'a daily sheet of your marketplace sales and reviews',D:'a bot that qualifies distributors and sends quotes',E:'caption and recipe drafts from your product photos',F:'a follow-up flow for your course leads'};
+const wc=s=>s.trim().split(/\s+/).length;
+function pitches(l){const c=(l.pitch.split(',')[0]||'A').trim(),n=l.notes.replace(/"/g,'').split(',')[0].trim();
+let a=`Hi ${l.brand} team, saw your page${n?` (${n})`:''}. ${PAIN[c]} I can set up ${OFFER[c]}. Want a 2-minute demo on your own catalogue?`;
+if(wc(a)>60)a=`Hi ${l.brand} team! ${PAIN[c]} I can set up ${OFFER[c]}. Want a 2-minute demo on your own catalogue?`;
+return[a,`Hi ${l.brand} team, a quick nudge on my earlier message. Happy to send a 2-minute demo built from your own products, no strings attached.`,`Sharing one example: for brands like yours, ${OFFER[c]} usually saves a few hours every week. Should I show it with your products?`,`Last note from me. If the timing is off, no worries at all. Reply "demo" anytime and I'll send it over.`]}
+function show(id){const l=L.find(x=>x.id==id),p=pitches(l);$('dt').textContent=l.brand;$('p0').value=p[0];$('p1').value='Day 2: '+p[1];$('p2').value='Day 5: '+p[2];$('p3').value='Day 10: '+p[3];$('wc').textContent=wc(p[0]);
+const n=wa(l.ph);$('sl').href=n?`https://wa.me/${n}?text=${encodeURIComponent(p[0])}`:l.ig?`https://instagram.com/${l.ig.replace(/\s/g,'')}`:'#';$('dg').showModal()}
+function cp(i){navigator.clipboard?.writeText($(i).value)}
+function set(id,k,v){const l=L.find(x=>x.id==id);l[k]=v;if(k=='status'&&v=='Messaged'&&!l.last)l.last=new Date().toISOString().slice(0,10);save();draw()}
+function mark(id){set(id,'last',new Date().toISOString().slice(0,10))}
+function addL(){const b=prompt('Brand name?');if(!b)return;L.push({id:Date.now(),brand:b,ig:prompt('Instagram handle (no @)?')||'',site:'',fol:'',ph:prompt('Phone (optional)?')||'',city:'',tier:(prompt('Tier A/B/C?','B')||'B').toUpperCase(),pitch:prompt('Pitch codes (e.g. A,B)?','A')||'',status:'New',last:'',notes:prompt('Notes (specific detail)?')||''});save();draw()}
+function exp(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(L,null,1)],{type:'application/json'}));a.download='leads.json';a.click()}
+function imp(i){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!Array.isArray(d))throw 0;L=d;save();draw()}catch(e){alert('Invalid JSON file')}};r.readAsText(i.files[0])}
+function srt(k){S.d=S.k==k?-S.d:1;S.k=k;draw()}
+function draw(){
+const q=$('q').value.toLowerCase(),t=$('ft').value,p=$('fp').value,s=$('fs').value;
+let r=L.filter(l=>(!t||l.tier==t)&&(!p||l.pitch.split(',').includes(p))&&(!s||l.status==s)&&(!q||[l.brand,l.ig,l.city,l.notes,l.site].join(' ').toLowerCase().includes(q)));
+const v=l=>S.k=='fol'?num(l.fol):S.k=='cat'?cat(l):S.k=='status'?ST.indexOf(l.status):(l[S.k]||'');
+r.sort((a,b)=>(v(a)>v(b)?1:v(a)<v(b)?-1:0)*S.d);
+$('th').innerHTML='<tr>'+COLS.map(c=>`<th onclick="${c[0]=='act'?'':`srt('${c[0]}')`}">${c[1]}${S.k==c[0]?(S.d>0?' ▲':' ▼'):''}</th>`).join('')+'</tr>';
+$('tb').innerHTML=r.map(l=>{const n=wa(l.ph),ig=l.ig.replace(/\s/g,'');
+const act=n?`<a href="https://wa.me/${n}" target="_blank" rel="noopener">WhatsApp</a>`:ig?`<a href="https://instagram.com/${esc(ig)}" target="_blank" rel="noopener">DM on Instagram</a>`:'<span class="m">no contact</span>';
+return `<tr><td><b>${esc(l.brand)}</b></td><td>${ig?`<a href="https://instagram.com/${esc(ig)}" target="_blank" rel="noopener">@${esc(l.ig)}</a>`:''}</td><td>${l.site?`<a href="https://${esc(l.site)}" target="_blank" rel="noopener">${esc(l.site)}</a>`:''}</td><td>${esc(l.fol)}</td><td>${esc(l.ph)}</td><td>${esc(l.city)}</td><td>${cat(l)}</td><td class="t">${l.tier}</td><td>${esc(l.pitch)}</td>
+<td><select onchange="set(${l.id},'status',this.value)">${ST.map(x=>`<option${x==l.status?' selected':''}>${x}</option>`).join('')}</select></td>
+<td><input type="date" value="${esc(l.last)}" onchange="set(${l.id},'last',this.value)"></td>
+<td><input value="${esc(l.notes)}" onchange="set(${l.id},'notes',this.value)"></td>
+<td style="white-space:nowrap">${act}<br><button class="p" onclick="show(${l.id})">Generate pitch</button></td></tr>`}).join('');
+const c=ST.map(x=>[x,L.filter(l=>l.status==x).length]),sum=ls=>ls.reduce((a,l)=>a+(RT[l.tier]||0),0);
+$('sum').innerHTML=c.map(x=>`<span class="chip">${x[0]}: <b>${x[1]}</b></span>`).join('')+`<span class="chip">Showing ${r.length}/${L.length}</span><span class="chip tot">Est. pipeline retainer: ₹${sum(L.filter(l=>l.status!='Dead')).toLocaleString('en-IN')}/mo</span><span class="chip tot">Won: ₹${sum(L.filter(l=>l.status=='Won')).toLocaleString('en-IN')}/mo</span>`}
+$('fs').innerHTML+=ST.map(x=>`<option>${x}</option>`).join('');
+$('nl').innerHTML=NL.map(x=>`<li>${esc(x)}</li>`).join('');
+draw();
+</script></body></html>
